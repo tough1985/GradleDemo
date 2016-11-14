@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">GradleDemo</string>
+    <string name="build_item">I come from main</string>
+</resources>

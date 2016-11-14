@@ -1,0 +1,185 @@
+apply plugin: 'com.android.application'
+
+def keystoreProperties = new Properties()
+keystoreProperties.load(new FileInputStream(file("keystore.properties")))
+
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.3"
+    defaultConfig {
+        applicationId "com.axiba.gradledemo"
+        minSdkVersion 15
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders = [UMENG_CHANNEL_VALUE: "axiba"]
+    }
+
+
+    signingConfigs {
+        debug {
+            storeFile file(keystoreProperties['debugKeyStoreFile'])
+//            storeFile file("/Users/liukun/.android/debug.keystore")
+        }
+        release {
+            storeFile file(keystoreProperties['releaseKeyStoreFile'])
+            storePassword keystoreProperties['releaseStorePassword']
+            keyAlias keystoreProperties['releaseKeyAlias']
+            keyPassword keystoreProperties['releaseKeyPassword']
+        }
+    }
+
+    buildTypes {
+        myBuildType {
+            //可调试
+            debuggable true
+            //给applicationId添加后缀，这样可同时在一部手机上存在多个版本
+            applicationIdSuffix ".debug"
+            //指定签名信息
+            signingConfig signingConfigs.debug
+            //添加自定义变量
+            buildConfigField "boolean", "isMyBuildType", "true"
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+        }
+    }
+
+    productFlavors {
+        wandoujia {
+            applicationIdSuffix '.wandoujia'
+//            manifestPlaceholders = [UMENG_CHANNEL_VALUE: "wandoujia"]
+        }
+    }
+
+    //添加渠道名称
+    productFlavors.all {
+        flavor -> flavor.manifestPlaceholders = [UMENG_CHANNEL_VALUE: name]
+    }
+
+    //格式化输出文件名称
+    applicationVariants.all { variant ->
+        variant.outputs.each { output ->
+            def outputFile = output.outputFile
+            if (outputFile != null && outputFile.name.endsWith('.apk')) {
+                def fileName = "GradleDemo_v${defaultConfig.versionName}_${variant.productFlavors[0].name}_release.apk"
+                output.outputFile = new File(outputFile.parent, fileName)
+            }
+        }
+    }
+
+
+
+//    task openApp (dependsOn: "installMyBuildType") << {
+//
+//        //如果有后缀，添加后缀
+//        def applicationId = android.defaultConfig.applicationId
+//
+//        if(buildTypes.myBuildType.applicationIdSuffix){
+//            applicationId += buildTypes.myBuildType.applicationIdSuffix
+//
+//        }
+//
+//        //执行adb命令来启动app
+//        project.exec {
+//            executable = adbExecutable
+//            args 'shell'
+//            args 'am'
+//            args 'start'
+//            args '-n'
+//            args "${applicationId}/com.axiba.gradledemo.MainActivity"
+//        }
+//    }
+
+}
+
+/**
+ * 根据buildType的名称创建安装完成后直接打开的任务
+ * @return
+ */
+
+def initTasksOpenAndInstall(){
+
+    android.productFlavors.each { productFlavor ->
+
+        def applicationId = android.defaultConfig.applicationId
+
+        def productFlavorName = getFirstLetterUpper(productFlavor.name)
+        //如果productFlavor有后缀，添加到applicationId中
+        if (productFlavor.applicationIdSuffix) {
+            applicationId += productFlavor.applicationIdSuffix
+        }
+
+        //遍历buildTypes
+        android.buildTypes.each { buildType ->
+
+            //buildType.name首字母大写
+            def buildTypeName = getFirstLetterUpper(buildType.name);
+
+            //如果有后缀，添加后缀
+//            def applicationId = android.defaultConfig.applicationId
+
+            //如果buildType有后缀，添加到applicationId中
+            if(buildType.applicationIdSuffix){
+                applicationId += buildType.applicationIdSuffix
+
+            }
+
+            //创建task
+            task "installAndOpen${productFlavorName}${buildTypeName}" (dependsOn: "install${productFlavorName}${buildTypeName}") {
+
+                //将task添加到install分组中
+                group "install"
+
+
+                //通过adb来执行启动应用
+                doLast {
+
+                    //执行adb命令来启动app
+                    project.exec {
+                        executable = android.adbExecutable
+                        args 'shell'
+                        args 'am'
+                        args 'start'
+                        args '-n'
+                        args "${applicationId}/com.axiba.gradledemo.MainActivity"
+                    }
+                }
+
+            }
+        }
+    }
+}
+
+initTasksOpenAndInstall()
+
+
+//第一个字母大写
+def getFirstLetterUpper(name){
+
+    def firstLetter = name.charAt(0).toUpperCase().toString();
+
+    if(name.length() > 1){
+        name = firstLetter + name.substring(1)
+    } else {
+        name = firstLetter
+    }
+
+    return name;
+}
+
+
+
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
+        exclude group: 'com.android.support', module: 'support-annotations'
+    })
+    compile 'com.android.support:appcompat-v7:23.4.0'
+    testCompile 'junit:junit:4.12'
+}

@@ -1,0 +1,3 @@
+<resources>
+    <string name="build_item">I come from myBuildType</string>
+</resources>
